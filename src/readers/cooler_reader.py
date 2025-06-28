@@ -23,7 +23,7 @@ _COOLER_BINS_SCHEMA = {
     'end': TYPE_POLARS_INTEGER,
 }
 
-class CoolerPolars:
+class CoolerReader:
     @staticmethod
     def process_chunk(chunk):
         df = pd.DataFrame(chunk, columns=["bin1_id", "bin2_id", "count"])
@@ -33,6 +33,7 @@ class CoolerPolars:
     def __init__(self, cooler, chunk_size=100_000, max_workers=4):
         self.chunk_size = chunk_size
         self.max_workers = max_workers
+        self.__full_info = None  
         self.__read_cooler(cooler)
 
     def __read_cooler(self, cooler):
@@ -54,6 +55,25 @@ class CoolerPolars:
 
         self.__counts = pl.concat(results)
 
+    def calc_full_info(self):
+        self.__full_info = self.__counts.join(
+            self.__bins, left_on='bin1_id', right_on='bin_id', how='left'
+        ).join(
+            self.__bins, left_on='bin2_id', right_on='bin_id', how='left', suffix="_bin2"
+        ).select(
+            [
+                pl.col('bin1_id'),
+                pl.col('bin2_id'),
+                pl.col('count'),
+                pl.col('chrom').alias('chrom1'),
+                pl.col('start').alias('start1'),
+                pl.col('end').alias('end1'),
+                pl.col('chrom_bin2').alias('chrom2'),
+                pl.col('start_bin2').alias('start2'),
+                pl.col('end_bin2').alias('end2')
+            ]
+        )
+
     @property
     def counts(self):
         return self.__counts
@@ -65,3 +85,10 @@ class CoolerPolars:
     @property
     def n_bins(self):
         return self.__n_bins
+    
+    @property
+    def joined_bins(self):
+        if self.__full_info is None:
+            self.calc_full_info()
+        return self.__full_info
+
