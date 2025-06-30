@@ -3,7 +3,7 @@ import polars as pl
 import polars_bio as pb
 
 from src.readers import (
-    CoolerReader,
+    CoolerPolars,
     ChainReader
 )
 from src._utils import (
@@ -24,9 +24,26 @@ _BINS_MATCH_SCHEMA = {
     'target_bin_region': TYPE_BIN_ZONE
 }
 
+class IncorrectOverlapException(Exception):
+    def __init__(
+        self, 
+        data_type
+    ):
+        self.data_type = data_type
+
+    def __str__(self):
+        fun = lambda: f'{self.data_type} is empty. Unable to continue pipeline'
+        return fun()
+
 def remap_bins(
-        source: CoolerReader, target: CoolerReader, chains: ChainReader
+        source: CoolerPolars, target: CoolerPolars, chains: ChainReader
 ) -> pl.DataFrame:
+    if source.bins.is_empty():
+        raise IncorrectOverlapException('Source bins')
+    if target.bins.is_empty():
+        raise IncorrectOverlapException('Target bins')
+    if chains.blocks.is_empty():
+        raise IncorrectOverlapException('Chain blocks')
     #WTF? So I just tried to run it, but this asshole gives some crap instead of columns 
     #1 – what’s wrong with cols2 and cols1, why the hell are they reversed
     # 2 – why the fuck is such bullshit coming out in the output names).
@@ -67,6 +84,10 @@ def remap_bins(
         pl.col('new_end_target'),
         pl.col('new_start_target')
     )
+
+    if joined_source.is_empty():
+        raise IncorrectOverlapException('Overlaps of source and chain')
+
     result = pb.overlap(
         df1=target.bins,
         df2=joined_source,

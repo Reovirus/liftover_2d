@@ -1,7 +1,8 @@
 from .chain_reader import ChainReader
-from .cooler_reader import CoolerReader
+from .cooler_reader import read_cooler, CoolerPolars
 
 __all__ = [
     'ChainReader',
-    'CoolerReader'
+    'read_cooler',
+    'CoolerPolars'
 ]
