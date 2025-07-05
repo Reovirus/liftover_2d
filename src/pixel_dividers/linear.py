@@ -5,7 +5,7 @@ from src._utils import TYPE_POLARS_SIGNED_INTEGER
 
 
 class CVDNorm(BaseDivider):
-    METRIC_NAME='CVD'
+    METRIC_NAME='LINEAR_1D'
     NEED_NORMALISATION=False
     NEED_SAMPLING=True
 
