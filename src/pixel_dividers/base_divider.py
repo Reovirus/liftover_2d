@@ -146,8 +146,5 @@ class BaseDivider(ABC):
     @abstractmethod
     def predict(self):
         weight_matrix = self._calc_coeffs(self._joined_bins)
-        if self.NEED_NORMALISATION:
-            weight_matrix = self.__normalize_counts(weight_matrix)
-        if self.NEED_SAMPLING:
-            weight_matrix = self.__calculate_counts_from_weights(weight_matrix)
+        weight_matrix = self.__normalize_counts(weight_matrix)
         return weight_matrix

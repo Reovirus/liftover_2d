@@ -1,24 +1,33 @@
-from src.pixel_dividers.base_divider import BaseDivider
+import polars as pl
 
-class LinearModelDivider(BaseDivider):
-    """
-    Divider that divides the image into pixels using a linear model.
-    This class should be inherited by all pixel divider implementations that use a linear model.
-    """
-    def __init__(
-        self,
-        mode='resample', 
-        cvd_norm=None, 
-        random_seed=None
-    ):
-        self.mode = mode,
-        self.cvd_norm = cvd_norm
-        self.random_seed = random_seed
+from .base_divider import BaseDivider
+from src._utils import TYPE_POLARS_SIGNED_INTEGER
 
-    def _divide_pixel(self, old_nums, old_borders, new_borders):
-        # Implement the logic for dividing a pixel using a linear model
-        return 
 
-    def divide_from_table(self, table_to_divide, pixels_table):
-        # Implement the logic for dividing the image into pixels from the table
-        pass
+class CVDNorm(BaseDivider):
+    METRIC_NAME='CVD'
+    NEED_NORMALISATION=False
+    NEED_SAMPLING=True
+
+    def __init__(self, mode):
+        super.__init__(mode=mode)
+
+    def _compute_weights(self):
+        self._joined_bins = self._joined_bins.with_columns(
+            (
+                (
+                    pl.col('source_bin_1_region').list.get(1) - pl.col('source_bin_1_region').list.get(0)
+                )/(
+                    pl.col('source_bin_1_location').list.get(1) - pl.col('source_bin_1_location').list.get(0)
+                )
+            ).alias('bin_1_linear_part'),
+            (
+                (
+                     pl.col('source_bin_2_region').list.get(1) - pl.col('source_bin_2_region').list.get(0)
+                )/(
+                    pl.col('source_bin_2_location').list.get(1) - pl.col('source_bin_2_location').list.get(0)
+                )
+            ).alias('bin_2_linear_part')
+        ).with_columns(
+            (pl.col('bin_1_linear_part')*pl.col('bin_2_linear_part') ).alias(f"{self.METRIC_NAME}_weight")
+        )
