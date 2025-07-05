@@ -86,7 +86,7 @@ def __process_chunk(chunk):
     return pl_df
 
 
-def read_cooler(cooler_file: Union[cooler.Cooler, str], chunk_size: int=4, max_workers: int=4):
+def read_cooler(cooler_file: Union[cooler.Cooler, str], chunk_size: int=100_000, max_workers: int=4):
     if isinstance(cooler, str):
         cooler_readed = cooler.Cooler(cooler_file)
     else:
@@ -139,3 +139,60 @@ def read_cooler(cooler_file: Union[cooler.Cooler, str], chunk_size: int=4, max_w
         bins=bins,
         counts=cnts
     )
+
+
+def read_cooler_chunk(cooler_file: Union[cooler.Cooler, str], chunk_size: int=100_000):
+    if isinstance(cooler, str):
+        cooler_readed = cooler.Cooler(cooler_file)
+    else:
+        cooler_readed = cooler_file
+    n_bins = cooler_readed.info['nbins']
+    bins = pl.from_pandas(cooler_readed.bins()[:].reset_index(names='bin_id').loc[:, ['bin_id', 'chrom', 'start', 'end']]).cast(_COOLER_BINS_SCHEMA)
+
+    bbox = (0, n_bins, 0, n_bins)
+    h5 = cooler_readed.open("r")
+    reader = CSRReader(h5["pixels"], h5["indexes/bin1_offset"][:])
+    field = "count"
+    engine = DirectRangeQuery2D(reader=reader, field=field, bbox=bbox, chunksize=chunk_size)
+    for chunk in engine: 
+        res = __process_chunk(chunk)
+        cnts = res.with_columns(
+            [
+                pl.when(
+                    pl.col("bin1_id") < pl.col("bin2_id")
+                ).then(
+                    pl.struct(
+                        [
+                            pl.col("bin1_id").alias('bin_1_corr'),
+                            pl.col("bin2_id").alias('bin_2_corr')
+                        ]
+                    )
+                ).otherwise(
+                    pl.struct(
+                        [
+                            pl.col("bin2_id").alias('bin_1_corr'),
+                            pl.col("bin1_id").alias('bin_2_corr')
+                        ]
+                    )
+                ).struct.unnest()
+            ]
+        ).group_by(
+            ["bin_1_corr", "bin_2_corr"], maintain_order=True
+        ).agg(
+            pl.sum("count").alias("count")
+        ).select(
+            pl.col("bin_1_corr").alias('bin1_id'),
+            pl.col("bin_2_corr").alias('bin2_id'),
+            pl.col("count")
+        )
+
+        yield CoolerPolars(
+            n_bins=n_bins,
+            bins=bins,
+            counts=cnts
+        )
+
+#discuss about mechanics 
+#maybe not read whole cooler
+def read_cooler_chrom(cooler_file: Union[cooler.Cooler, str], chunk_size: int=100_000, num_workers: int=4):
+    pass

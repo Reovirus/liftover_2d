@@ -108,7 +108,7 @@ def remap_bins(
         pl.col('bin_id').alias('target_bin'),
         pl.col("chrom_bin_target").alias("target_bin_chrom"),
         pl.concat_list(["start_bin_target", "end_bin_target"]).alias("target_bin_location"),
-        pl.concat_list(["target_start", "target_start"]).alias("target_bin_region"),
+        pl.concat_list(["target_start", "target_end"]).alias("target_bin_region"),
     ).cast(
         _BINS_MATCH_SCHEMA
     )
