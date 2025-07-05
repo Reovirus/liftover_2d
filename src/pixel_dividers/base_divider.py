@@ -66,10 +66,7 @@ class BaseDivider(ABC):
                 contact_matrix.with_columns(
                     grouped.get_column('multinomial_samples').explode().alias(f"{self.METRIC_NAME}_counts")
                 )
-
-                
-
-                
+     
             elif self._mode == 'proportional':
                 contact_matrix.with_columns(
                     (
@@ -98,7 +95,7 @@ class BaseDivider(ABC):
         self._counts_column = 'counts'
 
     @abstractmethod
-    def _calc_coeffs(self, *args, **Kwards) -> Any:
+    def _calc_coeffs(self) -> Any:
         pass
 
     def set_prep_joined(self, matrix, counts_column):
@@ -148,7 +145,7 @@ class BaseDivider(ABC):
 
     @abstractmethod
     def predict(self):
-        weight_matrix = self._calc_coeffs()
+        weight_matrix = self._calc_coeffs(self._joined_bins)
         if self.NEED_NORMALISATION:
             weight_matrix = self.__normalize_counts(weight_matrix)
         if self.NEED_SAMPLING:
