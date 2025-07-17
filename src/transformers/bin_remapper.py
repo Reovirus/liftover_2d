@@ -57,7 +57,8 @@ def remap_bins(
             pl.col("end_aln_source").alias("end_source"),
             pl.col("name_chain_target").alias("chrom_target"),
             pl.col("start_aln_target").alias("start_target"),
-            pl.col("end_aln_target").alias("end_target")
+            pl.col("end_aln_target").alias("end_target"),
+            pl.col("strand_chain_target")
         ),
         suffixes=('_bin_source', '_blocks'),
         cols2=('chrom', 'start', 'end'), 
@@ -67,11 +68,21 @@ def remap_bins(
         [
             pl.max_horizontal("start_source_blocks", "start_bin_source").alias("source_start"),
             pl.min_horizontal("end_source_blocks", "end_bin_source").alias("source_end"),
-            (
+
+
+            pl.when(
+                pl.col("strand_chain_target_bin_source") == '+'
+            ).then(
                 pl.col('end_target_bin_source') - (pl.col('end_source_blocks') - pl.min_horizontal("end_source_blocks", "end_bin_source"))
+            ).otherwise(
+                pl.col('end_target_bin_source') - (pl.max_horizontal("start_source_blocks", "start_bin_source") - pl.col('start_source_blocks'))
             ).alias('new_end_target'),
-            (
+            pl.when(
+                pl.col("strand_chain_target_bin_source") == '+'
+            ).then(
                 pl.col('start_target_bin_source') + (pl.min_horizontal("start_source_blocks", "start_bin_source") - pl.col('start_source_blocks'))
+            ).otherwise(
+                pl.col('start_target_bin_source') + (pl.col('end_source_blocks') - pl.min_horizontal("end_source_blocks", "end_bin_source").alias("source_end"))
             ).alias('new_start_target')
         ]
     ).select(
@@ -82,9 +93,9 @@ def remap_bins(
         pl.col('source_start'),
         pl.col('source_end'),
         pl.col('new_end_target'),
-        pl.col('new_start_target')
+        pl.col('new_start_target'),
+        pl.col("strand_chain_target_bin_source")
     )
-
     if joined_source.is_empty():
         raise IncorrectOverlapException('Overlaps of source and chain')
 
@@ -98,18 +109,38 @@ def remap_bins(
     ).with_columns(
         [
             pl.max_horizontal("new_start_target_bin_target", "start_bin_target").alias("target_start"),
-            pl.min_horizontal("new_end_target_bin_target", "end_bin_target").alias("target_end"),
+            pl.min_horizontal("new_end_target_bin_target", "end_bin_target").alias("target_end")
         ]
     ).select(
+    #HERE LOGICS WITH ENDS TARGETS 
         pl.col('source_bin_id_bin_target').alias('source_bin'),
         pl.col("source_bin_chrom"),
         pl.concat_list(["source_bin_start_bin_target", "source_bin_end_bin_target"]).alias("source_bin_location"),
-        pl.concat_list(["source_start_bin_target", "source_end_bin_target"]).alias("source_bin_region"),
+        pl.concat_list(
+            #cutoff source bin region
+            [
+                pl.when(
+                    pl.col("strand_chain_target_bin_source_bin_target") == '+'
+                ).then(
+                    pl.col('source_start_bin_target') + (pl.col('target_start') - pl.col("new_start_target_bin_target"))
+                ).otherwise(
+                    pl.col('source_start_bin_target') + (pl.col('new_end_target_bin_target') - pl.col("target_end"))
+                ),
+
+                pl.when(
+                    pl.col("strand_chain_target_bin_source_bin_target") == '+'
+                ).then(
+                    pl.col('source_end_bin_target') - (pl.col('new_end_target_bin_target') - pl.col("target_end"))
+                ).otherwise(
+                    pl.col('source_end_bin_target') - (pl.col('target_start') - pl.col("new_start_target_bin_target"))
+                )
+            ]
+        ).alias("source_bin_region"),
         pl.col('bin_id').alias('target_bin'),
         pl.col("chrom_bin_target").alias("target_bin_chrom"),
         pl.concat_list(["start_bin_target", "end_bin_target"]).alias("target_bin_location"),
-        pl.concat_list(["target_start", "target_end"]).alias("target_bin_region"),
+        pl.concat_list(["target_start", "target_end"]).alias("target_bin_region")
     ).cast(
         _BINS_MATCH_SCHEMA
     )
-    return result
+    return result 

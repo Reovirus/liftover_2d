@@ -241,3 +241,10 @@ class ChainReader:
     @chains.setter
     def value(self, new_value):
         raise ValueError("Chains cannot be set directly.")
+    
+
+def read_chain():
+    pass
+
+def read_chain_buffered():
+    pass
