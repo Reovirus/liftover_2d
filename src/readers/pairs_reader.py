@@ -19,5 +19,6 @@ _PAIRS_READ_SCHEMA = {
 
 def read_pairs(path):
     pairs_df, header, chromsizes = read_pairs(path)
-    pairs_polars = pl.from_pandas(pairs_df).cast(_PAIRS_READ_SCHEMA)
+    # readID cannot be correctly used in overlap
+    pairs_polars = pl.from_pandas(pairs_df).rename({'readID': 'readid'}).cast(_PAIRS_READ_SCHEMA)
     return pairs_polars 
