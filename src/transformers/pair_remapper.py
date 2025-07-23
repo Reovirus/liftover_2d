@@ -1,8 +1,9 @@
 import polars as pl
 import polars_bio as pb
 
-def remap_pairs(pairs_df, chains, old_border_shift=150, new_border_shift=150):
+from readers.chain_reader import ChainReader
 
+def remap_pairs(pairs_df: pl.DataFrame, chains: ChainReader, old_border_shift: int=150, new_border_shift: int=150):
     overlapped_source_pairs = pb.overlap(
         df1=pairs_df.with_columns(
             pl.col('pos1').alias('pos_1_end')
@@ -71,7 +72,7 @@ def remap_pairs(pairs_df, chains, old_border_shift=150, new_border_shift=150):
     )
 
 
-    overlapped_source_pairs = pb.overlap(
+    overlapped_target_pairs = pb.overlap(
         df1=overlapped_source_pairs.with_columns(
             pl.col('pos2').alias('pos_2_end')
         ),
@@ -136,7 +137,7 @@ def remap_pairs(pairs_df, chains, old_border_shift=150, new_border_shift=150):
         pl.col('mapq2_blocks').alias('mapq2')
     )
     
-    return overlapped_source_pairs.select(
+    return overlapped_target_pairs.select(
         pl.col('readid'),
         pl.col('chrom_1_relocated').alias('chrom1'),
         pl.col('pos_1_relocated').alias('pos1'),
