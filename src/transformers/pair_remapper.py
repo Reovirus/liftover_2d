@@ -125,27 +125,16 @@ def remap_pairs(pairs_df: pl.DataFrame, chains: ChainReader, old_border_shift: i
             )
         )
     ).select(
-        pl.col('pos_2_relocated'),
-        pl.col('strand_2_relocated'),
-        pl.col('chrom_target_pairs').alias('chrom_2_relocated'),
-        pl.col('pos_1_relocated_blocks').alias('pos_1_relocated'),
-        pl.col('strand_1_relocated_blocks').alias('strand_1_relocated'),
-        pl.col('chrom_1_relocated_pairs').alias('chrom_1_relocated'),
         pl.col('readid_blocks').alias('readid'),
+        pl.col('chrom_1_relocated_blocks').alias('chrom1'),
+        pl.col('pos_1_relocated_blocks').alias('pos1'),
+        pl.col('chrom_target_pairs').alias('chrom2'),
+        pl.col('pos_2_relocated').alias('pos2'),
+        pl.col('strand_1_relocated_blocks').alias('strand1'),
+        pl.col('strand_2_relocated').alias('strand2'),
         pl.col('pair_type_blocks').alias('pair_type'),
         pl.col('mapq1_blocks').alias('mapq1'),
         pl.col('mapq2_blocks').alias('mapq2')
     )
     
-    return overlapped_target_pairs.select(
-        pl.col('readid'),
-        pl.col('chrom_1_relocated').alias('chrom1'),
-        pl.col('pos_1_relocated').alias('pos1'),
-        pl.col('chrom_2_relocated').alias('chrom2'),
-        pl.col('pos_2_relocated').alias('pos2'),
-        pl.col('strand_1_relocated').alias('strand1'),
-        pl.col('strand_2_relocated').alias('strand2'),
-        pl.col('pair_type'),
-        pl.col('mapq1'),
-        pl.col('mapq2')
-    )
+    return overlapped_target_pairs
