@@ -1,7 +1,7 @@
 import polars as pl
 import polars_bio as pb
 
-from readers.chain_reader import ChainReader
+from src.readers.chain_reader import ChainReader
 
 def remap_pairs(pairs_df: pl.DataFrame, chains: ChainReader, old_border_shift: int=150, new_border_shift: int=150):
     overlapped_source_pairs = pb.overlap(
