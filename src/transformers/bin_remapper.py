@@ -80,7 +80,7 @@ def remap_bins(
             pl.when(
                 pl.col("strand_chain_target_bin_source") == '+'
             ).then(
-                pl.col('start_target_bin_source') + (pl.min_horizontal("start_source_blocks", "start_bin_source") - pl.col('start_source_blocks'))
+                pl.col('start_target_bin_source') + (pl.max_horizontal("start_source_blocks", "start_bin_source") - pl.col('start_source_blocks'))
             ).otherwise(
                 pl.col('start_target_bin_source') + (pl.col('end_source_blocks') - pl.min_horizontal("end_source_blocks", "end_bin_source").alias("source_end"))
             ).alias('new_start_target')
@@ -108,8 +108,8 @@ def remap_bins(
         output_type='polars.DataFrame'
     ).with_columns(
         [
-            pl.max_horizontal("new_start_target_bin_target", "start_bin_target").alias("target_start"),
-            pl.min_horizontal("new_end_target_bin_target", "end_bin_target").alias("target_end")
+            pl.max_horizontal("new_start_target", "start_bin_target").alias("target_start"),
+            pl.min_horizontal("new_end_target", "end_bin_target").alias("target_end")
         ]
     ).select(
     #HERE LOGICS WITH ENDS TARGETS 
@@ -122,17 +122,17 @@ def remap_bins(
                 pl.when(
                     pl.col("strand_chain_target_bin_source_bin_target") == '+'
                 ).then(
-                    pl.col('source_start_bin_target') + (pl.col('target_start') - pl.col("new_start_target_bin_target"))
+                    pl.col('source_start_bin_target') + (pl.col('target_start') - pl.col("new_start_target"))
                 ).otherwise(
-                    pl.col('source_start_bin_target') + (pl.col('new_end_target_bin_target') - pl.col("target_end"))
+                    pl.col('source_start_bin_target') + (pl.col('new_end_target') - pl.col("target_end"))
                 ),
 
                 pl.when(
                     pl.col("strand_chain_target_bin_source_bin_target") == '+'
                 ).then(
-                    pl.col('source_end_bin_target') - (pl.col('new_end_target_bin_target') - pl.col("target_end"))
+                    pl.col('source_end_bin_target') - (pl.col('new_end_target') - pl.col("target_end"))
                 ).otherwise(
-                    pl.col('source_end_bin_target') - (pl.col('target_start') - pl.col("new_start_target_bin_target"))
+                    pl.col('source_end_bin_target') - (pl.col('target_start') - pl.col("new_start_target"))
                 )
             ]
         ).alias("source_bin_region"),
@@ -143,4 +143,4 @@ def remap_bins(
     ).cast(
         _BINS_MATCH_SCHEMA
     )
-    return result 
+    return result
