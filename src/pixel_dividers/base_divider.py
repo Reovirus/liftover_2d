@@ -140,7 +140,12 @@ class BaseDivider(ABC):
             }
         )
 
-    def predict(self):
+    def predict(self, source, remap_schema: pl.DataFrame) -> pl.DataFrame:
+        self.join_matricies(source, remap_schema)
         weight_matrix = self._calc_coeffs(self._joined_bins)
         weight_matrix = self.__normalize_counts(weight_matrix)
         return weight_matrix
+    
+    @abstractmethod
+    def _compute_weights(self):
+        pass
