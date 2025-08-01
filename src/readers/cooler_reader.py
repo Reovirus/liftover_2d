@@ -207,8 +207,8 @@ def __generate_sliding_windows(
             yield (row_start, row_stop, col_start, col_stop)
 
 
-def read_cooler_sqaure(cooler_file: Union[cooler.Cooler, str], square_size: int=700, square_overlap: int = 5):
-    chunk_size = square_size**2
+def read_cooler_sqaure(cooler_file: Union[cooler.Cooler, str], square_size: int=700, square_overlap: int = 5, chunk_size=None):
+    chunk_size = square_size**2 if chunk_size is None else chunk_size
     if isinstance(cooler_file, str):
         cooler_readed = cooler.Cooler(cooler_file)
     else:
@@ -225,40 +225,45 @@ def read_cooler_sqaure(cooler_file: Union[cooler.Cooler, str], square_size: int=
         size=square_size,
         ovl=square_overlap
     ):
-        engine = DirectRangeQuery2D(reader=reader, field=field, bbox=bbox, chunksize=chunk_size+1)
+        print(bbox)
+        results = []
+        engine = DirectRangeQuery2D(reader=reader, field=field, bbox=bbox, chunksize=chunk_size)
         for chunk in engine: 
             res = __process_chunk(chunk)
-            cnts = res.with_columns(
-                [
-                    pl.when(
-                        pl.col("bin1_id") < pl.col("bin2_id")
-                    ).then(
-                        pl.struct(
-                            [
-                                pl.col("bin1_id").alias('bin_1_corr'),
-                                pl.col("bin2_id").alias('bin_2_corr')
-                            ]
-                        )
-                    ).otherwise(
-                        pl.struct(
-                            [
-                                pl.col("bin2_id").alias('bin_1_corr'),
-                                pl.col("bin1_id").alias('bin_2_corr')
-                            ]
-                        )
-                    ).struct.unnest()
-                ]
-            ).group_by(
-                ["bin_1_corr", "bin_2_corr"], maintain_order=True
-            ).agg(
-                pl.sum("count").alias("count")
-            ).select(
-                pl.col("bin_1_corr").alias('bin1_id'),
-                pl.col("bin_2_corr").alias('bin2_id'),
-                pl.col("count")
-            )
-            yield CoolerPolars(
-                n_bins=n_bins,
-                bins=bins,
-                counts=cnts
-            )
+            results.append(res)
+        
+        
+        cnts = pl.concat(results).with_columns(
+            [
+                pl.when(
+                    pl.col("bin1_id") < pl.col("bin2_id")
+                ).then(
+                    pl.struct(
+                        [
+                            pl.col("bin1_id").alias('bin_1_corr'),
+                            pl.col("bin2_id").alias('bin_2_corr')
+                        ]
+                    )
+                ).otherwise(
+                    pl.struct(
+                        [
+                            pl.col("bin2_id").alias('bin_1_corr'),
+                            pl.col("bin1_id").alias('bin_2_corr')
+                        ]
+                    )
+                ).struct.unnest()
+            ]
+        ).group_by(
+            ["bin_1_corr", "bin_2_corr"], maintain_order=True
+        ).agg(
+            pl.sum("count").alias("count")
+        ).select(
+            pl.col("bin_1_corr").alias('bin1_id'),
+            pl.col("bin_2_corr").alias('bin2_id'),
+            pl.col("count")
+        )
+        yield CoolerPolars(
+            n_bins=n_bins,
+            bins=bins,
+            counts=cnts
+        )
