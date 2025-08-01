@@ -10,7 +10,7 @@ class LinearDivider(BaseDivider):
     NEED_SAMPLING=True
 
     def __init__(self, mode):
-        super.__init__(mode=mode)
+        super().__init__(mode=mode)
 
     def _compute_weights(self):
         self._joined_bins = self._joined_bins.with_columns(

@@ -12,7 +12,7 @@ class CVDNorm(BaseDivider):
     def __init__(self, cis, trans, mode):
         self.__cis = dict(cis)
         self.__trans = trans
-        super.__init__(mode=mode)
+        super().__init__(mode=mode)
 
     def _compute_weights(self):
         self._joined_bins = self._joined_bins.with_columns(
