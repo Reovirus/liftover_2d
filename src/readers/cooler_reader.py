@@ -87,7 +87,7 @@ def __process_chunk(chunk):
 
 
 def read_cooler(cooler_file: Union[cooler.Cooler, str], chunk_size: int=100_000, max_workers: int=4):
-    if isinstance(cooler, str):
+    if isinstance(cooler_file, str):
         cooler_readed = cooler.Cooler(cooler_file)
     else:
         cooler_readed = cooler_file
@@ -142,7 +142,7 @@ def read_cooler(cooler_file: Union[cooler.Cooler, str], chunk_size: int=100_000,
 
 
 def read_cooler_chunk(cooler_file: Union[cooler.Cooler, str], chunk_size: int=100_000):
-    if isinstance(cooler, str):
+    if isinstance(cooler_file, str):
         cooler_readed = cooler.Cooler(cooler_file)
     else:
         cooler_readed = cooler_file
@@ -209,13 +209,10 @@ def __generate_sliding_windows(
 
 def read_cooler_sqaure(cooler_file: Union[cooler.Cooler, str], square_size: int=700, square_overlap: int = 5):
     chunk_size = square_size**2
-    if isinstance(cooler, str):
+    if isinstance(cooler_file, str):
         cooler_readed = cooler.Cooler(cooler_file)
     else:
         cooler_readed = cooler_file
-
-
-    
     n_bins = cooler_readed.info['nbins']
     bins = pl.from_pandas(cooler_readed.bins()[:].reset_index(names='bin_id').loc[:, ['bin_id', 'chrom', 'start', 'end']]).cast(_COOLER_BINS_SCHEMA)
 
