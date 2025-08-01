@@ -7,7 +7,7 @@ from cooler.core import (
 import cooler
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, Tuple, Generator
 
 from src._utils import (
     TYPE_POLARS_INTEGER,
@@ -192,7 +192,76 @@ def read_cooler_chunk(cooler_file: Union[cooler.Cooler, str], chunk_size: int=10
             counts=cnts
         )
 
-#discuss about mechanics 
-#maybe not read whole cooler
-def read_cooler_chrom(cooler_file: Union[cooler.Cooler, str], chunk_size: int=100_000, num_workers: int=4):
-    pass
+
+def __generate_sliding_windows(
+    n_bins: int,
+    size: int,
+    ovl: int
+) -> Generator[Tuple[int, int, int, int], None, None]:
+    """Yield (row_start, row_stop, col_start, col_stop) windows."""
+    step = size - ovl
+    for row_start in range(0, n_bins, step):
+        row_stop = min(row_start + size, n_bins)
+        for col_start in range(0, n_bins, step):
+            col_stop = min(col_start + size, n_bins)
+            yield (row_start, row_stop, col_start, col_stop)
+
+
+def read_cooler_sqaure(cooler_file: Union[cooler.Cooler, str], square_size: int=700, square_overlap: int = 5):
+    chunk_size = square_size**2
+    if isinstance(cooler, str):
+        cooler_readed = cooler.Cooler(cooler_file)
+    else:
+        cooler_readed = cooler_file
+
+
+    
+    n_bins = cooler_readed.info['nbins']
+    bins = pl.from_pandas(cooler_readed.bins()[:].reset_index(names='bin_id').loc[:, ['bin_id', 'chrom', 'start', 'end']]).cast(_COOLER_BINS_SCHEMA)
+
+    h5 = cooler_readed.open("r")
+    reader = CSRReader(h5["pixels"], h5["indexes/bin1_offset"][:])
+    field = "count"
+
+    for bbox in __generate_sliding_windows(
+        n_bins=n_bins,
+        size=square_size,
+        ovl=square_overlap
+    ):
+        engine = DirectRangeQuery2D(reader=reader, field=field, bbox=bbox, chunksize=chunk_size+1)
+        for chunk in engine: 
+            res = __process_chunk(chunk)
+            cnts = res.with_columns(
+                [
+                    pl.when(
+                        pl.col("bin1_id") < pl.col("bin2_id")
+                    ).then(
+                        pl.struct(
+                            [
+                                pl.col("bin1_id").alias('bin_1_corr'),
+                                pl.col("bin2_id").alias('bin_2_corr')
+                            ]
+                        )
+                    ).otherwise(
+                        pl.struct(
+                            [
+                                pl.col("bin2_id").alias('bin_1_corr'),
+                                pl.col("bin1_id").alias('bin_2_corr')
+                            ]
+                        )
+                    ).struct.unnest()
+                ]
+            ).group_by(
+                ["bin_1_corr", "bin_2_corr"], maintain_order=True
+            ).agg(
+                pl.sum("count").alias("count")
+            ).select(
+                pl.col("bin_1_corr").alias('bin1_id'),
+                pl.col("bin_2_corr").alias('bin2_id'),
+                pl.col("count")
+            )
+            yield CoolerPolars(
+                n_bins=n_bins,
+                bins=bins,
+                counts=cnts
+            )
