@@ -94,9 +94,6 @@ class BaseDivider(ABC):
         self._mode = mode
         self._counts_column = 'counts'
 
-    @abstractmethod
-    def _calc_coeffs(self) -> Any:
-        pass
 
     def set_prep_joined(self, matrix, counts_column):
         self._joined_bins=matrix
@@ -143,7 +140,6 @@ class BaseDivider(ABC):
             }
         )
 
-    @abstractmethod
     def predict(self):
         weight_matrix = self._calc_coeffs(self._joined_bins)
         weight_matrix = self.__normalize_counts(weight_matrix)
