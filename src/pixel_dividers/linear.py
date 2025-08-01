@@ -4,7 +4,7 @@ from .base_divider import BaseDivider
 from src._utils import TYPE_POLARS_SIGNED_INTEGER
 
 
-class CVDNorm(BaseDivider):
+class LinearDivider(BaseDivider):
     METRIC_NAME='LINEAR_1D'
     NEED_NORMALISATION=False
     NEED_SAMPLING=True

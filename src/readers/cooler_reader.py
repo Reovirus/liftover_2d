@@ -225,7 +225,6 @@ def read_cooler_sqaure(cooler_file: Union[cooler.Cooler, str], square_size: int=
         size=square_size,
         ovl=square_overlap
     ):
-        print(bbox)
         results = []
         engine = DirectRangeQuery2D(reader=reader, field=field, bbox=bbox, chunksize=chunk_size)
         for chunk in engine: 

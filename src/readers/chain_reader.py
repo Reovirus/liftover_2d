@@ -29,6 +29,8 @@ _CHAIN_SCHEMA = {
 _block_cols = ["source_aln_start", "source_aln_end", "target_aln_start", "size_aln", "gap_aln_source", "gap_aln_target", "index_chain_block"]
 _BLOCK_SCHEMA = { col : TYPE_POLARS_INTEGER for col in _block_cols}
 
+_block_pl_cols = ['index_chain_block', "size_aln",  "gap_aln_source", "gap_aln_target"]
+_BLOCK_PL_SCHEMA = { col : TYPE_POLARS_INTEGER for col in _block_pl_cols}
 
 class ChainReader:
     def __init__(self, chain_file: Union[BinaryIO, TextIO, str], use_buffered: bool = False, buffer_size: int = 4 * 1024 * 1024):
@@ -84,13 +86,13 @@ class ChainReader:
             pl.col(
                 "raw"
             ).cast(pl.String).str.split_exact(
-                "\t", len(_BLOCK_SCHEMA.keys()) - 1
+                "\t", len(_BLOCK_PL_SCHEMA.keys()) - 1
             ).struct.rename_fields(
-                list(_BLOCK_SCHEMA.keys())
+                list(_BLOCK_PL_SCHEMA.keys())
             ).alias("blk")
         ).unnest(
             "blk"
-        ).cast(_BLOCK_SCHEMA).fill_null(0)
+        ).cast(_BLOCK_PL_SCHEMA).fill_null(0)
 
         blocks_df.drop_in_place("raw")
         chains_df.drop_in_place("raw")
@@ -132,9 +134,6 @@ class ChainReader:
             file_content = self.__chain_file.read()
 
         lines = file_content.splitlines()
-        chains_data = b''
-        blocks_data = b''
-
         chains_data = []
         blocks_data = []
 
@@ -181,13 +180,13 @@ class ChainReader:
             pl.col(
                 "raw"
             ).cast(pl.String).str.split_exact(
-                "\t", len(_BLOCK_SCHEMA.keys()) - 1
+                "\t", len(_BLOCK_PL_SCHEMA.keys())
             ).struct.rename_fields(
-                list(_BLOCK_SCHEMA.keys())
+                list(_BLOCK_PL_SCHEMA.keys())
             ).alias("blk")
         ).unnest(
             "blk"
-        ).cast(_BLOCK_SCHEMA).fill_null(0)
+        ).cast(_BLOCK_PL_SCHEMA).fill_null(0)
 
         blocks_df.drop_in_place("raw")
         chains_df.drop_in_place("raw")
