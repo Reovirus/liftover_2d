@@ -1,6 +1,6 @@
 import polars as pl
 
-from .base_divider import BaseDivider
+from src.pixel_dividers.base_divider import BaseDivider
 from src._utils import TYPE_POLARS_SIGNED_INTEGER
 
 
@@ -31,3 +31,5 @@ class LinearDivider(BaseDivider):
         ).with_columns(
             (pl.col('bin_1_linear_part')*pl.col('bin_2_linear_part') ).alias(f"{self.METRIC_NAME}_weight")
         )
+
+        return self._joined_bins

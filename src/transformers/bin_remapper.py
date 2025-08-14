@@ -36,11 +36,11 @@ class IncorrectOverlapException(Exception):
         return fun()
 
 def remap_bins(
-        source: CoolerPolars, target: CoolerPolars, chains: ChainReader
+        source: pl.DataFrame, target: pl.DataFrame, chains: ChainReader
 ) -> pl.DataFrame:
-    if source.bins.is_empty():
+    if source.is_empty():
         raise IncorrectOverlapException('Source bins')
-    if target.bins.is_empty():
+    if target.is_empty():
         raise IncorrectOverlapException('Target bins')
     if chains.blocks.is_empty():
         raise IncorrectOverlapException('Chain blocks')
@@ -50,7 +50,7 @@ def remap_bins(
     # I've killed to days to explote cols1 and cols2 changind
     #version in reqs file pls - I hope it'll be fixerd soon
     joined_source = pb.overlap(
-        df1=source.bins,
+        df1=source,
         df2=chains.blocks.select(
             pl.col("name_chain_source").alias("chrom_source"),
             pl.col("start_aln_source").alias("start_source"),
@@ -100,7 +100,7 @@ def remap_bins(
         raise IncorrectOverlapException('Overlaps of source and chain')
 
     result = pb.overlap(
-        df1=target.bins,
+        df1=target,
         df2=joined_source,
         suffixes=('_bin_target', ''),
         cols2=('chrom', 'start', 'end'), 

@@ -1,6 +1,6 @@
 import polars as pl
 
-from .base_divider import BaseDivider
+from src.pixel_dividers.base_divider import BaseDivider
 from src._utils import TYPE_POLARS_SIGNED_INTEGER
 
 
@@ -28,3 +28,5 @@ class CVDNorm(BaseDivider):
                 self.__trans
             ).alias(f"{self.METRIC_NAME}_weight")
         )
+        
+        return self._joined_bins

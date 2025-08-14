@@ -41,58 +41,65 @@ class BaseDivider(ABC):
     NEED_SAMPLING=True
 
 
-    def __normalize_counts(self, contact_matrix, need_normalisation: bool=True):
+    def __normalize_counts(self, contact_matrix):
         if not self.NEED_NORMALISATION and not self.NEED_SAMPLING:
             return contact_matrix.with_columns(
                 pl.col(f"{self.METRIC_NAME}_weight").alias(f"{self.METRIC_NAME}_counts")
             )
-        contact_matrix = contact_matrix.sort('source_bin_hash')
+        contact_matrix = contact_matrix.filter(
+            (pl.col(f"{self.METRIC_NAME}_weight").is_not_null()) 
+        ).sort(
+            'source_bin_hash'
+        )
         grouped = contact_matrix.group_by("source_bin_hash").agg([
             pl.col(f"{self.METRIC_NAME}_weight").alias("weight_list"),
             pl.col("source_counts").first()
-        ])
+        ]) 
         if self.NEED_SAMPLING:
             if self.NEED_NORMALISATION:
                 fun = multinomial_norm
             else: 
                 fun = multinomial_with_remainder
             if self._mode == 'resample':
-
                 grouped = grouped.with_columns(
-                    pl.struct([f"{self.METRIC_NAME}_counts", "weight_list"]).map_elements(
-                        lambda row: fun(row[f"{self.METRIC_NAME}_counts"], row["weight_list"])
+                    pl.struct([f"{self._counts_column}", "weight_list"]).map_elements(
+                        lambda row: fun(row[f"{self._counts_column}"], row["weight_list"])
                     ).alias("multinomial_samples")
                 )
-                contact_matrix.with_columns(
+                contact_matrix = contact_matrix.with_columns(
                     grouped.get_column('multinomial_samples').explode().alias(f"{self.METRIC_NAME}_counts")
                 )
      
             elif self._mode == 'proportional':
-                contact_matrix.with_columns(
-                    (
-                        pl.col(self._counts_column) * pl.col(f"{self.METRIC_NAME}_weight")
-                    ).alias(f"{self.METRIC_NAME}_counts")
+                t_join = grouped.explode("multinomial_samples")
+                contact_matrix = contact_matrix.join(
+                    t_join,
+                    on="source_bin_hash",
+                    how="left"
+                ).select(
+                    "*",  # Сохраняем все столбцы из исходного DataFrame
+                    pl.col("multinomial_samples").alias(f"{self.METRIC_NAME}_counts")
                 )
             else:
                 raise ValueError(f"Unacceptable mode {self._mode}. Possible modes are 'resample' and 'proportional' only.")
         else: 
             if self.NEED_NORMALISATION:
                 grouped_contacts = grouped_contacts.with_columns(
-                    pl.col("weight_list").list.sum().alias("weights_sum")
+                    pl.col("weight_list_correct").list.sum().alias("weights_sum")
                 ).explode(
-                    "weight_list"
+                    "weight_list_correct"
                 ).with_columns(
-                    (pl.col("weight_list") / pl.col("weights_sum")).alias("weight_list")
-                )
+                    (pl.col("weight_list_correct") / pl.col("weights_sum")).alias("weight_list_corrected")
+                )      
                 contact_matrix.with_columns(
-                    grouped_contacts.get_column('weight_list').explode().alias(f"{self.METRIC_NAME}_weight")
+                    grouped_contacts.get_column('weight_list_corrected').alias(f"{self.METRIC_NAME}_weight")
                 )
         return contact_matrix
 
 
     def __init__(self, mode: Literal['resample', 'proportional'], recalc_change_only:bool = False):
         self._mode = mode
-        self._counts_column = 'counts'
+        self._counts_column = 'source_counts'
 
 
     def set_prep_joined(self, matrix, counts_column):
@@ -140,12 +147,54 @@ class BaseDivider(ABC):
             }
         )
 
-    def predict(self, source, remap_schema: pl.DataFrame) -> pl.DataFrame:
-        self.join_matricies(source, remap_schema)
-        weight_matrix = self._calc_coeffs(self._joined_bins)
+    def _predict_in_pipeline(self):
+        weight_matrix = self._compute_weights()
         weight_matrix = self.__normalize_counts(weight_matrix)
         return weight_matrix
     
     @abstractmethod
-    def _compute_weights(self):
+    def _compute_weights(self, **args):
         pass
+
+    def predict(self, source, remap_schema: pl.DataFrame, return_format: Literal['full', 'compact']='compact') -> pl.DataFrame:
+        self.join_matricies(source, remap_schema)
+        weight_matrix = self._compute_weights()
+        weight_matrix = self.__normalize_counts(weight_matrix)
+        if return_format == 'full':
+            return weight_matrix
+        elif return_format == 'compact':
+            return weight_matrix.select(
+                pl.col('target_bin_1').alias('bin1_id'),
+                pl.col('target_bin_2').alias('bin2_id'),
+                pl.col(f'{self.METRIC_NAME}_counts').alias('count')
+            ).with_columns(
+                [
+                    pl.when(
+                        pl.col("bin1_id") < pl.col("bin2_id")
+                    ).then(
+                        pl.struct(
+                            [
+                                pl.col("bin1_id").alias('bin_1_corr'),
+                                pl.col("bin2_id").alias('bin_2_corr')
+                            ]
+                        )
+                    ).otherwise(
+                        pl.struct(
+                            [
+                                pl.col("bin2_id").alias('bin_1_corr'),
+                                pl.col("bin1_id").alias('bin_2_corr')
+                            ]
+                        )
+                    ).struct.unnest()
+                ]
+            ).group_by(
+                ["bin_1_corr", "bin_2_corr"], maintain_order=True
+            ).agg(
+                pl.sum("count").alias("count")
+            ).select(
+                pl.col("bin_1_corr").alias('bin1_id'),
+                pl.col("bin_2_corr").alias('bin2_id'),
+                pl.col("count")
+            )
+        else:
+            raise ValueError(f"Unacceptable return format {return_format}. Possible formats are 'full' and 'compact'.")

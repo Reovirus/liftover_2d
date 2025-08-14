@@ -247,18 +247,3 @@ def read_chain():
 
 def read_chain_buffered():
     pass
-
-
-
-def read_chain_file(file: Union[BinaryIO, TextIO, str], use_buffered: bool = False, buffer_size: int = 4 * 1024 * 1024) -> ChainReader:
-    """
-    Reads a chain file and returns a ChainReader object.
-    
-    :param file: Path to the chain file or a file-like object.
-    :param use_buffered: Whether to read the file using buffered reading.
-    :param buffer_size: Size of the buffer for buffered reading.
-    :return: ChainReader object containing chains and blocks data.
-    """
-
-    if isinstance()
-    return ChainReader(file, use_buffered=use_buffered, buffer_size=buffer_size)
