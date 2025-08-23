@@ -25,7 +25,11 @@ def multinomial_norm(count, probs):
 def multinomial_with_remainder(count, probs):
     probs = np.array(probs, dtype=float)
     sum_probs = probs.sum()
-    remainder = 1.0 - sum_probs
+    if sum_probs > 1.0:
+        probs = probs / sum_probs
+        remainder = 0.0
+    else:
+        remainder = 1.0 - sum_probs
     extended_probs = np.append(probs, remainder)
     result = np.random.multinomial(count, extended_probs)
     return result[:-1].tolist()
@@ -48,13 +52,26 @@ class BaseDivider(ABC):
             )
         contact_matrix = contact_matrix.filter(
             (pl.col(f"{self.METRIC_NAME}_weight").is_not_null()) 
+            & (pl.col(f"{self.METRIC_NAME}_weight").is_not_nan()) 
         ).sort(
             'source_bin_hash'
+        ).with_columns(
+            pl.col('source_counts').fill_nan(0).alias('source_counts')
         )
         grouped = contact_matrix.group_by("source_bin_hash").agg([
             pl.col(f"{self.METRIC_NAME}_weight").alias("weight_list"),
-            pl.col("source_counts").first()
+            pl.col("source_counts").first(),
+            pl.count().alias('partition_size')
         ]) 
+
+        stat_before = (
+            f'CM size BEFORE: {contact_matrix.shape}, grouped size: {grouped.shape}'
+        )
+        table_before = (
+            grouped.select(
+                pl.col('weight_list').list.len().sum().alias('weight_list_length'),
+            )
+        )
         if self.NEED_SAMPLING:
             if self.NEED_NORMALISATION:
                 fun = multinomial_norm
@@ -63,12 +80,46 @@ class BaseDivider(ABC):
             if self._mode == 'resample':
                 grouped = grouped.with_columns(
                     pl.struct([f"{self._counts_column}", "weight_list"]).map_elements(
-                        lambda row: fun(row[f"{self._counts_column}"], row["weight_list"])
+                        lambda row: fun(row[f"{self._counts_column}"], row["weight_list"]),
+                        return_dtype=pl.List(pl.Int64),
+                        skip_nulls=False
                     ).alias("multinomial_samples")
                 )
-                contact_matrix = contact_matrix.with_columns(
-                    grouped.get_column('multinomial_samples').explode().alias(f"{self.METRIC_NAME}_counts")
+
+                stat_after = (
+                    f'CM size AFTER: {contact_matrix.shape}, grouped size: {grouped.shape}'
                 )
+                table_after = (
+                    grouped.select(
+                        pl.col('multinomial_samples').list.len().sum().alias('multinomial_samples_length'),
+                    )
+                )
+                try:
+                    grouped = grouped.sort(
+                        'source_bin_hash'
+                    )
+                    contact_matrix = contact_matrix.with_columns(
+                        grouped.get_column('multinomial_samples').explode().alias(f"{self.METRIC_NAME}_counts")
+                    )
+                except Exception as e:
+                    print(stat_before)
+                    display(table_before)
+                    print(stat_after)
+                    display(table_after)
+                    display(
+                        grouped.filter(
+                            (pl.col('multinomial_samples').list.len() != pl.col('partition_size'))
+                            |
+                            (pl.col('multinomial_samples').list.len() != pl.col('weight_list').list.len())
+                            |
+                            (pl.col('multinomial_samples').list.len() == 0)
+                            |
+                            (
+                                ~pl.col("list_col").list.eval(pl.element().is_not_null()).list.all()
+                            )
+                        )
+                    )
+                    raise e
      
             elif self._mode == 'proportional':
                 t_join = grouped.explode("multinomial_samples")

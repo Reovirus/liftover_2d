@@ -6,14 +6,26 @@ import os
 import threading
 import cooler
 import uuid
+import polars as pl
+import pandas as pd
 
 from datetime import datetime
-from typing import Iterable
+from typing import Iterable, Union
 
 from src.readers import CoolerPolars
 
 
-def cooler_saver(cooler_polars_iterator: Iterable[CoolerPolars], res_path: str, ttl_seconds: int = 2 * 60 * 60, print_progress: bool = True, mergebuff=1_000_000) -> cooler.Cooler:
+def save_cooler_chunks(pixels_iterator: Iterable[pl.DataFrame], res_path: str, bins: Union[pl.DataFrame, pd.DataFrame]) -> None:
+    if isinstance(bins, pl.DataFrame):
+        bins = bins.to_pandas()
+    res = cooler.create_cooler(
+        cool_uri=res_path,
+        bins=bins,
+        pixels=(pixels_df.to_pandas() for pixels_df in pixels_iterator),
+    )
+    return res
+
+def save_cooler_separate(cooler_polars_iterator: Iterable[CoolerPolars], res_path: str, ttl_seconds: int = 2 * 60 * 60, print_progress: bool = True, mergebuf: int=1_000_000) -> cooler.Cooler:
     '''
     :param cooler_polars_iterator: Iterable of CoolerPolars objects to save and merge
     :param res_path: Path to save the merged cooler file
@@ -56,7 +68,7 @@ def cooler_saver(cooler_polars_iterator: Iterable[CoolerPolars], res_path: str, 
 
     if print_progress:
         print(f"[INFO] Merging {len(part_paths)} parts into {res_path}")
-    cooler.merge_coolers(output_uri=res_path, input_uris=part_paths, mergebuff=mergebuff)
+    cooler.merge_coolers(output_uri=res_path, input_uris=part_paths, mergebuf=mergebuf)
     if print_progress:
         print(f"[INFO] Merged parts into: {res_path}")
 
