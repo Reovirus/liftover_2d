@@ -101,4 +101,4 @@ def sample_counts(
         rng = np.random.default_rng(random_state)
         yield rng.binomial(n=clr_file.matrix(balance=False)[:], p=keep_rate), '__total__'
     else:
-        raise ValueError("return_strategy must be 'total' or 'per_chromosome'")
+        raise ValueError("return_strategy must be 'total' or 'per_chromosome'") 
