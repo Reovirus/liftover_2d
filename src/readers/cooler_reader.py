@@ -7,7 +7,7 @@ from cooler.core import (
 import cooler
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Union, Tuple, Generator
+from typing import Union, Tuple, Generator, Iterator
 
 from src._utils import (
     TYPE_POLARS_INTEGER,
@@ -207,7 +207,12 @@ def __generate_sliding_windows(
             yield (row_start, row_stop, col_start, col_stop)
 
 
-def read_cooler_sqaure(cooler_file: Union[cooler.Cooler, str], square_size: int=700, square_overlap: int = 5, chunk_size=None):
+def read_cooler_square(
+        cooler_file: Union[cooler.Cooler, str], 
+        square_size: int=700, 
+        square_overlap: int = 5, 
+        chunk_size=None
+    ) ->  Iterator[Tuple[Tuple[int, int, int, int], CoolerPolars]]: 
     chunk_size = square_size**2 if chunk_size is None else chunk_size
     if isinstance(cooler_file, str):
         cooler_readed = cooler.Cooler(cooler_file)
@@ -261,7 +266,7 @@ def read_cooler_sqaure(cooler_file: Union[cooler.Cooler, str], square_size: int=
             pl.col("bin_2_corr").alias('bin2_id'),
             pl.col("count")
         )
-        yield CoolerPolars(
+        yield bbox, CoolerPolars(
             n_bins=n_bins,
             bins=bins,
             counts=cnts

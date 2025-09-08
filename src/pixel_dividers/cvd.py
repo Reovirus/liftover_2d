@@ -8,13 +8,14 @@ class CVDNorm(BaseDivider):
     METRIC_NAME='CVD'
     NEED_NORMALISATION=True
     NEED_SAMPLING=True
+    COMPUTE_COUNTS=False
 
     def __init__(self, cis, trans, mode):
         self.__cis = dict(cis)
         self.__trans = trans
         super().__init__(mode=mode)
 
-    def _compute_weights(self):
+    def _compute_weights(self, source_hic):
         self._joined_bins = self._joined_bins.with_columns(
             (
                 pl.col('target_bin_1').cast(TYPE_POLARS_SIGNED_INTEGER) - pl.col('target_bin_2').cast(TYPE_POLARS_SIGNED_INTEGER)

@@ -8,11 +8,12 @@ class LinearDivider(BaseDivider):
     METRIC_NAME='LINEAR_1D'
     NEED_NORMALISATION=False
     NEED_SAMPLING=True
+    COMPUTE_COUNTS=False
 
-    def __init__(self, mode):
+    def __init__(self, mode='resample'):
         super().__init__(mode=mode)
 
-    def _compute_weights(self):
+    def _compute_weights(self, source_hic):
         self._joined_bins = self._joined_bins.with_columns(
             (
                 (

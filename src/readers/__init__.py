@@ -1,5 +1,5 @@
 from .chain_reader import ChainReader
-from .cooler_reader import read_cooler, CoolerPolars, read_cooler_sqaure, read_cooler_chunk
+from .cooler_reader import read_cooler, CoolerPolars, read_cooler_square, read_cooler_chunk
 from .pairs_reader import read_pairs
 
 __all__ = [
@@ -7,6 +7,6 @@ __all__ = [
     'read_cooler',
     'CoolerPolars',
     'read_pairs',
-    'read_cooler_sqaure',
+    'read_cooler_square',
     'read_cooler_chunk'
 ]
