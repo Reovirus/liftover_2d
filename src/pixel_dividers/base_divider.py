@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Literal, List, Tuple
+from typing import Any, Optional, Literal, List, Tuple, Iterator
 from src._utils import (
     TYPE_POLARS_INTEGER,
     TYPE_POLARS_SIGNED_INTEGER,
@@ -139,7 +139,7 @@ class BaseDivider(ABC):
         self._not_normalize = not_normalize
 
     def join_matricies(self, source: CoolerPolars, remap_schema: pl.DataFrame):
-        vmax = max(source.counts['bin1_id'].max(), source.counts['bin2_id'].max())
+        vmax = int(source.n_bins)
         if vmax > POLARS_VMAX**0.5 - 2:
             raise ValueError('Maximal bin id is too big')
         self._joined_bins = source.counts.select(
@@ -242,8 +242,10 @@ class BaseNeigborUsingDivider(BaseDivider):
 
     @staticmethod
     def __calculate_small_window(bin1, bin2, sparse_contacts, window_size, bbox):
-        loc_hor = bin1 - bbox[0]
-        loc_ver = bin2 - bbox[2]
+        #fix fckng problems with uint64 overflow
+        loc_hor = int(bin1 - bbox[0])
+        #same. kak ze ya ustal ot vsego
+        loc_ver = int(bin2 - bbox[2])
 
         start_i = max(0, loc_hor - window_size)
         end_i   = min(sparse_contacts.shape[0], loc_hor + window_size + 1)
@@ -264,7 +266,7 @@ class BaseNeigborUsingDivider(BaseDivider):
     def _process_one_window(self, counts_arr, location):
         pass
 
-    def __calculate_one_pixel(self, sourse, region_in_rate_1: List[float], region_in_rate_2: List[float], bbox: Tuple[int, int, int, int]) -> float:
+    def __calculate_one_pixel(self, sourse, region_in_rate_1: List[float], region_in_rate_2: List[float]) -> float:
         minimal_divider = 1/self._scale_factor
         # (x + y/2)//y = math rounded locartion
         slice_bin_1_start = (region_in_rate_1[0] + 0.5*minimal_divider)//minimal_divider
@@ -273,38 +275,15 @@ class BaseNeigborUsingDivider(BaseDivider):
         slice_bin_2_start = (region_in_rate_2[0] + 0.5*minimal_divider)//minimal_divider
         slice_bin_2_end = (region_in_rate_2[1] + 0.5*minimal_divider)//minimal_divider
 
-        weight = sourse[slice_bin_1_start:slice_bin_1_end, slice_bin_2_start:slice_bin_2_end].sum()
+        weight = sourse[int(slice_bin_1_start):int(slice_bin_1_end), int(slice_bin_2_start):int(slice_bin_2_end)].sum()
         return weight
-
-    def __compute_one_row(
-        self,
-        row,
-        sparce_contacts,
-        bbox
-    ) -> float:
-        
-        window, location = self.__calculate_small_window(
-            row['bin1_id'], 
-            row['bin2_id'], 
-            sparce_contacts, 
-            self._ident, 
-            bbox
-        )
-        weights = self._process_one_window(self, window, location)
-
-        weihgt = self.__calculate_one_pixel(
-            weights,
-            row['source_bin_location_1'], 
-            row['source_bin_location_2']
-        )
-        return weihgt
     
-    def __generate_bbox(self) -> Tuple[Tuple[str, str], Tuple[int, int, int, int]]:
+    def __generate_bbox(self) -> Iterator[Tuple[Tuple[str, str], Tuple[int, int, int, int]]]:
         for chrom_1, chrom_2 in self._joined_bins.select(
             pl.col('source_bin_1_chrom'),
             pl.col('source_bin_2_chrom')
         ).unique().iter_rows():
-            return (
+            yield (
                 self.__bins_locations.loc[chrom_1, 'min_bin'],
                 self.__bins_locations.loc[chrom_1, 'max_bin'],
                 self.__bins_locations.loc[chrom_2, 'min_bin'],
@@ -312,7 +291,6 @@ class BaseNeigborUsingDivider(BaseDivider):
             ), (chrom_1, chrom_2)
 
     def _compute_weights(self, source):
-        print('Starting computing weights')
         self.__counts_per_pixel_tmp = source.counts.to_pandas()
         self.__counts_per_pixel_tmp.index = pd.MultiIndex.from_frame(
             self.__counts_per_pixel_tmp.loc[:, ['bin1_id', 'bin2_id']]
@@ -341,13 +319,21 @@ class BaseNeigborUsingDivider(BaseDivider):
             ).alias('bin_2_linear_part'),
             
             pl.concat_list([
-                pl.col('source_bin_1_region').list.get(0) / (pl.col('source_bin_1_location').list.get(1) - pl.col('source_bin_1_location').list.get(0)),
-                pl.col('source_bin_1_region').list.get(1) / (pl.col('source_bin_1_location').list.get(1) - pl.col('source_bin_1_location').list.get(0))
+                (pl.col('source_bin_1_region').list.get(0) - pl.col('source_bin_1_location').list.get(0))
+                    / 
+                (pl.col('source_bin_1_location').list.get(1) - pl.col('source_bin_1_location').list.get(0)),
+                (pl.col('source_bin_1_region').list.get(1) - pl.col('source_bin_1_location').list.get(0))
+                    /  
+                (pl.col('source_bin_1_location').list.get(1) - pl.col('source_bin_1_location').list.get(0))
             ]).alias("source_bin_1_region_rate"),
             
             pl.concat_list([
-                pl.col('source_bin_2_region').list.get(0) / (pl.col('source_bin_2_location').list.get(1) - pl.col('source_bin_2_location').list.get(0)),
-                pl.col('source_bin_2_region').list.get(1) / (pl.col('source_bin_2_location').list.get(1) - pl.col('source_bin_2_location').list.get(0))
+                (pl.col('source_bin_2_region').list.get(0) - pl.col('source_bin_2_location').list.get(0)) 
+                / 
+                (pl.col('source_bin_2_location').list.get(1) - pl.col('source_bin_2_location').list.get(0)),
+                (pl.col('source_bin_2_region').list.get(1) - pl.col('source_bin_2_location').list.get(0)) 
+                    / 
+                (pl.col('source_bin_2_location').list.get(1) - pl.col('source_bin_2_location').list.get(0))
             ]).alias("source_bin_2_region_rate")
         ).filter(
             (pl.col('bin_1_linear_part') >= (1.0/self._scale_factor))
@@ -356,7 +342,7 @@ class BaseNeigborUsingDivider(BaseDivider):
             name='row_number'
         )  
 
-        weights = np.zeros(self._joined_bins.height, dtype=np.float32)
+        weights = np.ones(self._joined_bins.height, dtype=np.float32)
         
         sparce_contacts = csr_matrix(
             (
@@ -366,22 +352,53 @@ class BaseNeigborUsingDivider(BaseDivider):
             shape=(source.n_bins, source.n_bins)
         )
         sparce_contacts = _reflect_window_keep_diag(sparce_contacts)
+
+        chroms = (None, None)
+
+        to_one_trashold = 1 - (1.0/self._scale_factor)
+
         for bbox, chroms in self.__generate_bbox():
-            curr_subset = sparce_contacts[bbox[0]:bbox[1], bbox[2]:bbox[3]]
+            curr_subset = sparce_contacts[bbox[0]:bbox[1]+1, bbox[2]:bbox[3]+1]
+            wr = None
+            bin_1_id = None
+            bin_2_id = None
             for row in self._joined_bins.filter(
                 (pl.col('source_bin_1_chrom') == chroms[0]) 
                 & (pl.col('source_bin_2_chrom') == chroms[1])
+                & (pl.col('bin_1_linear_part') <= to_one_trashold)
+                & (pl.col('bin_2_linear_part') <= to_one_trashold)        
             ).select(
                 pl.col('row_number'),
-                pl.col('bin1_id'),
-                pl.col('bin2_id'),
+                pl.col('source_bin_id_1').alias('bin1_id'),
+                pl.col('source_bin_id_2').alias('bin2_id'),
                 pl.col('source_bin_1_region_rate'),
                 pl.col('source_bin_2_region_rate'),
             ).iter_rows(named=True):
-                weights[row['row_number']] = self.__compute_one_row(
-                    row,
-                    curr_subset,
-                    bbox
+                if bin_1_id != row['bin1_id'] or bin_2_id != row['bin2_id'] or wr is not None:
+                    window, location = self.__calculate_small_window(
+                        row['bin1_id'], 
+                        row['bin2_id'], 
+                        curr_subset, 
+                        self._ident, 
+                        bbox
+                    )
+
+                    #empty window
+                    if window.shape[0] == 0 or window.shape[1] == 0:
+                        print('Empty window for row', row)
+                        print('bbox', bbox)
+                        weights[row['row_number']] = 0.0
+                        continue
+                    weights_raw = self._process_one_window(window, location)
+                    wr = weights_raw
+                    bin_1_id = row['bin1_id']
+                    bin_2_id = row['bin2_id']
+                else:
+                    weights_raw = wr
+                weights[row['row_number']] = self.__calculate_one_pixel(
+                    weights_raw,
+                    row['source_bin_1_region_rate'], 
+                    row['source_bin_2_region_rate']
                 )
         self._joined_bins = self._joined_bins.with_columns(
             pl.Series(weights).alias(f"{self.METRIC_NAME}_weight")

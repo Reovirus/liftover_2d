@@ -16,12 +16,17 @@ class PolynimialSplineDivider(BaseNeigborUsingDivider):
 
 
     def _process_one_window(self, counts_arr, location):
-        zoomed = zoom(counts_arr, zoom=self._scale_factor, order=self.__k, grid_mode=True, mode='nearest')
-        our_pixel = zoomed[
-            location[0]*self._scale_factor:(location[0]+1)*self._scale_factor, 
-            location[1]*self._scale_factor:(location[1]+1)*self._scale_factor, 
-        ]
+        try:
+            zoomed = zoom(counts_arr, zoom=self._scale_factor, order=self.__k, grid_mode=True, mode='nearest')
+            our_pixel = zoomed[
+                location[0]*self._scale_factor:(location[0]+1)*self._scale_factor, 
+                location[1]*self._scale_factor:(location[1]+1)*self._scale_factor, 
+            ]
+        except Exception as e:
+            print(counts_arr, location)
+            raise e
         our_pixel = np.clip(our_pixel, 0, None)
+        our_pixel = our_pixel.astype(float)
         s = our_pixel.sum()
         if s > 0:
             our_pixel /= s
