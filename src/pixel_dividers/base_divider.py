@@ -255,7 +255,7 @@ class BaseNeigborUsingDivider(BaseDivider):
         window = sparse_contacts[start_i:end_i, start_j:end_j]
         location_in_window = (loc_hor - start_i, loc_ver - start_j)
         
-        return window(), location_in_window
+        return window, location_in_window
 
     def __init__(self, ident: int=4, scale_factor: int=5, mode: Literal['resample', 'proportional']='resample'):
         self._ident = ident
