@@ -42,7 +42,7 @@ def create_sample_json_ram(
             }
             if 'relative' in compute_metrics:
                 rate_matrix = (sampled + 1)/(original+1)
-                ideal_result = np.ones(original.shape)
+                ideal_result = np.ones(original.shape, dtype=np.float32)
                 mtrs = {
                     'diags_relative': compute_diags(rate_matrix, ideal_result, metric_list=metric_list),
                     'cols_relative': compute_cols(rate_matrix, ideal_result, metric_list=metric_list),

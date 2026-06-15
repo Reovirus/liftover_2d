@@ -123,7 +123,6 @@ def read_chain_file(input_file):
 
         else:
             i += 1
-
     # Convert lists to strings and read into DataFrames
     chains_df = pl.read_csv(
                     chains_data,
